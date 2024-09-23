@@ -276,8 +276,21 @@ croydon_travel_lines$distances <- l_distances/1000
 
 #add column for average distance traveled, grouped by LSOA
 croydon_travel_lines$total_distance <- ((croydon_travel_lines$flow)*(croydon_travel_lines$distances))
+
 #add rounded distance column
-croydon_travel_lines$distance_500m <- round(croydon_travel_lines$distances, digits = 0.5)
+croydon_travel_lines$distance_100m <- round(croydon_travel_lines$distances, digits = 1)
+
+custom_round <- function(x) {
+  0.5 * round(2 * x)
+}
+
+croydon_travel_lines$distance_500m <- custom_round(croydon_travel_lines$distances)
+
+#Make new df grouped by LSOA
+Flows_by_100mdist <- st_set_geometry(croydon_travel_lines,NULL) %>% 
+  dplyr::select(., c(flow,distance_100m)) %>% 
+  group_by(distance_100m) %>% 
+  summarize_all(sum, na.rm = TRUE)
 
 #Make new df grouped by LSOA
 Flows_by_500mdist <- st_set_geometry(croydon_travel_lines,NULL) %>% 
@@ -285,8 +298,9 @@ Flows_by_500mdist <- st_set_geometry(croydon_travel_lines,NULL) %>%
   group_by(distance_500m) %>% 
   summarize_all(sum, na.rm = TRUE)
 
-ggplot(Flows_by_500mdist, aes(distance_500m, flow)) + geom_line() + scale_x_continuous(breaks = seq(0, 50, by = 1)) + labs(title = "Pupil Flows by Distance to School", x = "Distance (km)", y = "Pupil Count")
+ggplot(Flows_by_100mdist, aes(distance_100m, flow)) + geom_line() + scale_x_continuous(breaks = seq(0, 50, by = 1)) + labs(title = "Pupil Flows by Distance to School", x = "Distance (km)", y = "Pupil Count")
 
+ggplot(Flows_by_500mdist, aes(distance_500m, flow)) + geom_line() + scale_x_continuous(breaks = seq(0, 50, by = 1)) + labs(title = "Pupil Flows by Distance to School", x = "Distance (km)", y = "Pupil Count")
 
 ```
 
