@@ -264,4 +264,29 @@ map
 ```
 
 
+## Distance to Schools
+
+```{r}
+library(ggplot2)
+
+#Straight line distances
+l_distances <- geo_length(croydon_travel_lines)
+# Convert to km
+croydon_travel_lines$distances <- l_distances/1000
+
+#add column for average distance traveled, grouped by LSOA
+croydon_travel_lines$total_distance <- ((croydon_travel_lines$flow)*(croydon_travel_lines$distances))
+#add rounded distance column
+croydon_travel_lines$distance_500m <- round(croydon_travel_lines$distances, digits = 0.5)
+
+#Make new df grouped by LSOA
+Flows_by_500mdist <- st_set_geometry(croydon_travel_lines,NULL) %>% 
+  dplyr::select(., c(flow,distance_500m)) %>% 
+  group_by(distance_500m) %>% 
+  summarize_all(sum, na.rm = TRUE)
+
+ggplot(Flows_by_500mdist, aes(distance_500m, flow)) + geom_line()
+
+
+```
 
