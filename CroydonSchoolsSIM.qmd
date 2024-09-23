@@ -1,0 +1,220 @@
+---
+title: "CroydonSchoolsSIM"
+author: "Adam Dennett"
+format: html
+editor: visual
+---
+
+## Vignette to demonstrate Modelling pupil flows into schools in Croydon from surrounding LSOAs. 
+
+```{r}
+library(tidyverse)
+library(sf)
+library(janitor)
+library(here)
+library(usethis)
+library(tmap)
+library(readxl)
+```
+
+
+```{r}
+here()
+```
+
+
+
+## Introduction
+
+### Data Set-up - Destinations (Schools in Croydon)
+
+The data used in this vignette is the Edubase dataset, which contains information on all schools in England. The data is filtered to only include schools in London, and then further filtered to only include schools in Croydon. The data is then converted into a simplefeatures object, which is a spatial object that can be used in spatial analysis.
+
+These schools represent the destinations in our spatial interaction model.
+
+
+```{r}
+#Reading in all schools basefile, and filtering out for the ones that are open, and in London
+LondonSchools <- read_csv("https://www.dropbox.com/s/pk56hu33liaog46/edubasealldata.csv?raw=1") %>% 
+  dplyr::filter(str_detect(`EstablishmentStatus (name)`, "Open")) %>%  
+  dplyr::filter(str_detect(`DistrictAdministrative (code)`, "^E09")) %>% 
+  clean_names()
+
+CroydonSchools <- LondonSchools  %>%  
+  dplyr::filter(str_detect(la_name, "Croydon"))
+
+#Create a simplefeatures object out of the CroydonSchools
+
+CroydonSchools_sf <- CroydonSchools %>%
+  st_as_sf(., coords = c("easting", "northing")) %>% 
+  st_set_crs(27700)
+
+CroydonSchools_sf_secondary <- CroydonSchools_sf %>%
+  filter(!phase_of_education_name %in% c("Primary", "Nursery", "Not applicable"))
+```
+
+### Data Set-up - Origins (LSOAs in Croydon and the Surrounding Boroughs)
+
+```{r}
+use_zip("https://data.london.gov.uk/download/statistical-gis-boundary-files-london/9ba8c833-6370-4b11-abdc-314aa020d5e0/statistical-gis-boundaries-london.zip", destdir = getwd())
+unzip("statistical-gis-boundaries-london.zip", exdir = getwd())
+
+London_LSOAs <- st_read("statistical-gis-boundaries-london/ESRI/LSOA_2011_London_gen_MHW.shp")%>% st_transform(27700) %>% clean_names
+
+London_Boroughs <- st_read("statistical-gis-boundaries-london/ESRI/London_Borough_Excluding_MHW.shp") %>% st_transform(27700) %>% clean_names
+
+Croydon_LSOAs <- London_LSOAs |> 
+  dplyr::filter(str_detect(lad11nm, "Croydon"))
+
+Croydon_Borough <- London_Boroughs |> 
+  dplyr::filter(str_detect(name, "Croydon"))
+
+surround_boroughs <- c("Sutton", "Merton", "Wandsworth", "Lambeth", "Southwark", "Lewisham", "Bromley", "Croydon")
+
+Surrounding_Boroughs <- London_Boroughs |> 
+  dplyr::filter(name %in% surround_boroughs)
+
+Croydon_Surround_LSOAs <- London_LSOAs %>% filter(lad11nm %in% surround_boroughs)
+
+```
+
+## Map of the spatial system
+
+```{r}
+tmap_mode("view")
+tmap_options(check.and.fix = TRUE)
+
+map <- tm_shape(CroydonSchools_sf_secondary) +
+          tm_dots(col="phase_of_education_name", size=0.05,id="establishment_name", title = "Phase of Education", border.alpha = 0) +
+  tm_shape(Surrounding_Boroughs) +
+          tm_polygons(col = NA, alpha = 0) +
+  tm_shape(Croydon_Surround_LSOAs) +
+          tm_polygons(border.col = "grey", border.alpha = 0.5, alpha = 0) 
+
+map
+```
+
+## Observed Flow Data and observed Oi and Dj pupil counts
+
+Note that these are only the observed LSOA to School counts in this year - there are other LSOAs that pupils could come from, we will deal with those later. 
+
+```{r}
+#need to predownload some school flow data in .xlsx format from here:
+#https://data.london.gov.uk/dataset/london-schools-atlas
+
+##read in 2016 school flow data for London - different files for LSOA to School and School to LSOA
+Catchments_LSOAtoSecSchool_2016 <- read_excel("data/Catchments_LSOAtoSecSchool_2016_LDS.xlsx", sheet = "LSOAtoSecSchool_LDS_2016") %>% clean_names()
+Catchments_SecSchooltoLSOA_2016 <- read_excel("data/Catchments_SecSchootoLSOA_2016_LDS.xlsx", sheet = "SecSchootoLSOA_LDS_2016") %>% clean_names()
+
+#filtering out for Croydon schools only
+# note, flows are equivalent, but Oi and Dj values are different
+
+Croydon_LSOAtoSecSchool_2016 <- Catchments_LSOAtoSecSchool_2016 %>% 
+  dplyr::filter(secondary_school_urn %in% CroydonSchools_sf_secondary$urn)%>% 
+  unite("od_code", c("lsoa_code","secondary_school_urn"), sep = "_", remove = FALSE) %>%
+  relocate(od_code)
+
+Croydon_SecSchooltoLSOA_2016 <- Catchments_SecSchootoLSOA_2016 %>% 
+  dplyr::filter(secondary_school_urn %in% CroydonSchools_sf_secondary$urn)%>% 
+  unite("od_code", c("lsoa_code","secondary_school_urn"), sep = "_", remove = FALSE) %>%
+  relocate(od_code)
+
+## merge so we have Oi and Dj values for each LSOA and School
+
+temp <- Croydon_SecSchooltoLSOA_2016[,c("od_code", "total_sec_school_pupils")]
+
+# Left join the two data frames based on the 'od_code' column
+CroydonLSOA_to_School_obs <- left_join(Croydon_LSOAtoSecSchool_2016, temp, by = "od_code") 
+
+
+```
+
+## Full matrix of possible flows with additional orig and dest data
+
+```{r}
+
+library(stplanr)
+
+##big matrix for the whole of London
+lsoa_london_to_croydon_school_matrix <- 
+  matrix(0, nrow = nrow(London_LSOAs), ncol = nrow(CroydonSchools), dimnames = list(London_LSOAs$lsoa11cd,CroydonSchools$urn))
+
+#smaller matrix for boroughs surrounding Croydon
+lsoa_surround_croydon_to_croydon_school_matrix <- 
+  matrix(0, nrow = nrow(Croydon_Surround_LSOAs), ncol = nrow(CroydonSchools), dimnames = list(Croydon_Surround_LSOAs$lsoa11cd,CroydonSchools$urn))
+
+###############
+#matrix to paired list
+#all of London - and add an od_id
+lsoa_london_to_croydon_school_all <- odmatrix_to_od(lsoa_london_to_croydon_school_matrix) %>% 
+  unite("od_code", c("orig","dest"), sep = "_", remove = FALSE)
+
+#join the flows
+lsoa_london_to_croydon_school_all$flow <- CroydonLSOA_to_School_obs$pupil_count[match(lsoa_london_to_croydon_school_all$od_code, CroydonLSOA_to_School_obs$od_code)]
+
+# now add some origin and destination population variables
+#origins first
+lsoa_london_to_croydon_school_all$orig_pupils <- CroydonLSOA_to_School_obs$total_no_of_lsoa_pupils[match(lsoa_london_to_croydon_school_all$orig, CroydonLSOA_to_School_obs$lsoa_code)]
+
+lsoa_london_to_croydon_school_all$orig_pop <- London_LSOAs$usualres[match(lsoa_london_to_croydon_school_all$orig, London_LSOAs$lsoa11cd)]
+
+#destinations next
+lsoa_london_to_croydon_school_all$establishment_name <- CroydonSchools$establishment_name[match(lsoa_london_to_croydon_school_all$dest, CroydonSchools$urn)]
+
+lsoa_london_to_croydon_school_all$dest_total_pupils <- CroydonLSOA_to_School_obs$total_sec_school_pupils[match(lsoa_london_to_croydon_school_all$dest, CroydonLSOA_to_School_obs$secondary_school_urn)]
+
+lsoa_london_to_croydon_school_all$dest_number_pupils <- CroydonSchools$number_of_pupils[match(lsoa_london_to_croydon_school_all$dest, CroydonSchools$urn)]
+
+lsoa_london_to_croydon_school_all$dest_capacity <- CroydonSchools$school_capacity[match(lsoa_london_to_croydon_school_all$dest, CroydonSchools$urn)]
+
+lsoa_london_to_croydon_school_all$dest_pct_fsm <- CroydonSchools$percentage_fsm[match(lsoa_london_to_croydon_school_all$dest, CroydonSchools$urn)]
+
+lsoa_london_to_croydon_school_all$type_of_establishment_name <- CroydonSchools$type_of_establishment_name[match(lsoa_london_to_croydon_school_all$dest, CroydonSchools$urn)]
+
+lsoa_london_to_croydon_school_all$establishment_type_group_name <- CroydonSchools$establishment_type_group_name[match(lsoa_london_to_croydon_school_all$dest, CroydonSchools$urn)]
+
+lsoa_london_to_croydon_school_all$gender_name <- CroydonSchools$gender_name[match(lsoa_london_to_croydon_school_all$dest, CroydonSchools$urn)]
+
+lsoa_london_to_croydon_school_all$phase_of_education_name <- CroydonSchools$phase_of_education_name[match(lsoa_london_to_croydon_school_all$dest, CroydonSchools$urn)]
+
+
+
+########################################################################################
+#matrix to paired list
+#local surrounding boroughs
+lsoa_surround_croydon_to_croydon_school_all <- odmatrix_to_od(lsoa_surround_croydon_to_croydon_school_matrix) %>% 
+  unite("od_code", c("orig","dest"), sep = "_", remove = FALSE)
+
+#join the flows
+lsoa_surround_croydon_to_croydon_school_all$flow <- CroydonLSOA_to_School_obs$pupil_count[match(lsoa_surround_croydon_to_croydon_school_all$od_code, CroydonLSOA_to_School_obs$od_code)]
+
+# now add some origin and destination population variables
+#origins first
+lsoa_surround_croydon_to_croydon_school_all$orig_pupils <- CroydonLSOA_to_School_obs$total_no_of_lsoa_pupils[match(lsoa_surround_croydon_to_croydon_school_all$orig, CroydonLSOA_to_School_obs$lsoa_code)]
+
+lsoa_surround_croydon_to_croydon_school_all$orig_pop <- London_LSOAs$usualres[match(lsoa_surround_croydon_to_croydon_school_all$orig, London_LSOAs$lsoa11cd)]
+
+#destinations next
+lsoa_surround_croydon_to_croydon_school_all$establishment_name <- CroydonSchools$establishment_name[match(lsoa_surround_croydon_to_croydon_school_all$dest, CroydonSchools$urn)]
+
+lsoa_surround_croydon_to_croydon_school_all$dest_total_pupils <- CroydonLSOA_to_School_obs$total_sec_school_pupils[match(lsoa_surround_croydon_to_croydon_school_all$dest, CroydonLSOA_to_School_obs$secondary_school_urn)]
+
+lsoa_surround_croydon_to_croydon_school_all$dest_number_pupils <- CroydonSchools$number_of_pupils[match(lsoa_surround_croydon_to_croydon_school_all$dest, CroydonSchools$urn)]
+
+lsoa_surround_croydon_to_croydon_school_all$dest_capacity <- CroydonSchools$school_capacity[match(lsoa_surround_croydon_to_croydon_school_all$dest, CroydonSchools$urn)]
+
+lsoa_surround_croydon_to_croydon_school_all$dest_pct_fsm <- CroydonSchools$percentage_fsm[match(lsoa_surround_croydon_to_croydon_school_all$dest, CroydonSchools$urn)]
+
+lsoa_surround_croydon_to_croydon_school_all$type_of_establishment_name <- CroydonSchools$type_of_establishment_name[match(lsoa_surround_croydon_to_croydon_school_all$dest, CroydonSchools$urn)]
+
+lsoa_surround_croydon_to_croydon_school_all$establishment_type_group_name <- CroydonSchools$establishment_type_group_name[match(lsoa_surround_croydon_to_croydon_school_all$dest, CroydonSchools$urn)]
+
+lsoa_surround_croydon_to_croydon_school_all$gender_name <- CroydonSchools$gender_name[match(lsoa_surround_croydon_to_croydon_school_all$dest, CroydonSchools$urn)]
+
+lsoa_surround_croydon_to_croydon_school_all$phase_of_education_name <- CroydonSchools$phase_of_education_name[match(lsoa_surround_croydon_to_croydon_school_all$dest, CroydonSchools$urn)]
+
+```
+
+## Add some geometry information to the data
+
+
