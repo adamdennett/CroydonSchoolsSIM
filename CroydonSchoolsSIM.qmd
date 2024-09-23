@@ -285,7 +285,7 @@ Flows_by_500mdist <- st_set_geometry(croydon_travel_lines,NULL) %>%
   group_by(distance_500m) %>% 
   summarize_all(sum, na.rm = TRUE)
 
-ggplot(Flows_by_500mdist, aes(distance_500m, flow)) + geom_line()
+ggplot(Flows_by_500mdist, aes(distance_500m, flow)) + geom_line() + scale_x_continuous(breaks = seq(0, 50, by = 1)) + labs(title = "Pupil Flows by Distance to School", x = "Distance (km)", y = "Pupil Count")
 
 
 ```
