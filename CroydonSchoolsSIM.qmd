@@ -5,7 +5,7 @@ format: html
 editor: visual
 ---
 
-## Vignette to demonstrate Modelling pupil flows into schools in Croydon from surrounding LSOAs. 
+## Vignette to demonstrate Modelling pupil flows into schools in Croydon from surrounding LSOAs.
 
 ```{r}
 library(tidyverse)
@@ -17,12 +17,9 @@ library(tmap)
 library(readxl)
 ```
 
-
 ```{r}
 here()
 ```
-
-
 
 ## Introduction
 
@@ -31,7 +28,6 @@ here()
 The data used in this vignette is the Edubase dataset, which contains information on all schools in England. The data is filtered to only include schools in London, and then further filtered to only include schools in Croydon. The data is then converted into a simplefeatures object, which is a spatial object that can be used in spatial analysis.
 
 These schools represent the destinations in our spatial interaction model.
-
 
 ```{r}
 #Reading in all schools basefile, and filtering out for the ones that are open, and in London - then attaching geometries
@@ -87,7 +83,7 @@ Croydon_Surround_LSOAs <- London_LSOAs %>% filter(lad11nm %in% surround_boroughs
 tmap_mode("view")
 tmap_options(check.and.fix = TRUE)
 
-map <- tm_shape(CroydonSchools_sf_secondary) +
+map <- tm_shape(CroydonSchools_secondary) +
           tm_dots(col="phase_of_education_name", size=0.05,id="establishment_name", title = "Phase of Education", border.alpha = 0) +
   tm_shape(Surrounding_Boroughs) +
           tm_polygons(col = NA, alpha = 0) +
@@ -99,7 +95,7 @@ map
 
 ## Observed Flow Data and observed Oi and Dj pupil counts
 
-Note that these are only the observed LSOA to School counts in this year - there are other LSOAs that pupils could come from, we will deal with those later. 
+Note that these are only the observed LSOA to School counts in this year - there are other LSOAs that pupils could come from, we will deal with those later.
 
 ```{r}
 #need to predownload some school flow data in .xlsx format from here:
@@ -113,12 +109,12 @@ Catchments_SecSchooltoLSOA_2016 <- read_excel("data/Catchments_SecSchootoLSOA_20
 # note, flows are equivalent, but Oi and Dj values are different
 
 Croydon_LSOAtoSecSchool_2016 <- Catchments_LSOAtoSecSchool_2016 %>% 
-  dplyr::filter(secondary_school_urn %in% CroydonSchools_sf_secondary$urn)%>% 
+  dplyr::filter(secondary_school_urn %in% CroydonSchools_secondary$urn)%>% 
   unite("od_code", c("lsoa_code","secondary_school_urn"), sep = "_", remove = FALSE) %>%
   relocate(od_code)
 
 Croydon_SecSchooltoLSOA_2016 <- Catchments_SecSchooltoLSOA_2016 %>% 
-  dplyr::filter(secondary_school_urn %in% CroydonSchools_sf_secondary$urn)%>% 
+  dplyr::filter(secondary_school_urn %in% CroydonSchools_secondary$urn)%>% 
   unite("od_code", c("lsoa_code","secondary_school_urn"), sep = "_", remove = FALSE) %>%
   relocate(od_code)
 
@@ -218,7 +214,39 @@ lsoa_surround_croydon_to_croydon_school_all$phase_of_education_name <- CroydonSc
 
 lsoa_surround_croydon_to_croydon_school_all$ofsted_rating_name <- CroydonSchools$ofsted_rating_name[match(lsoa_surround_croydon_to_croydon_school_all$dest, CroydonSchools$urn)]
 
-### add eastings and northings for the schools
+########################################################################################
+####################################
+# Just the observed flows
+
+croydon_lSOA_to_school_obs <- croydon_lSOA_to_school_obs %>%
+  rename(flow = pupil_count, 
+orig = lsoa_code, 
+dest = secondary_school_urn)
+
+# now add some origin and destination population variables
+#origins first
+croydon_lSOA_to_school_obs$orig_pop <- London_LSOAs$usualres[match(croydon_lSOA_to_school_obs$orig, London_LSOAs$lsoa11cd)]
+
+#destinations next
+croydon_lSOA_to_school_obs$establishment_name <- CroydonSchools$establishment_name[match(croydon_lSOA_to_school_obs$dest, CroydonSchools$urn)]
+
+croydon_lSOA_to_school_obs$dest_total_pupils <- croydon_lSOA_to_school_obs$total_sec_school_pupils[match(croydon_lSOA_to_school_obs$dest, croydon_lSOA_to_school_obs$secondary_school_urn)]
+
+croydon_lSOA_to_school_obs$dest_number_pupils <- CroydonSchools$number_of_pupils[match(croydon_lSOA_to_school_obs$dest, CroydonSchools$urn)]
+
+croydon_lSOA_to_school_obs$dest_capacity <- CroydonSchools$school_capacity[match(croydon_lSOA_to_school_obs$dest, CroydonSchools$urn)]
+
+croydon_lSOA_to_school_obs$dest_pct_fsm <- CroydonSchools$percentage_fsm[match(croydon_lSOA_to_school_obs$dest, CroydonSchools$urn)]
+
+croydon_lSOA_to_school_obs$type_of_establishment_name <- CroydonSchools$type_of_establishment_name[match(croydon_lSOA_to_school_obs$dest, CroydonSchools$urn)]
+
+croydon_lSOA_to_school_obs$establishment_type_group_name <- CroydonSchools$establishment_type_group_name[match(croydon_lSOA_to_school_obs$dest, CroydonSchools$urn)]
+
+croydon_lSOA_to_school_obs$gender_name <- CroydonSchools$gender_name[match(croydon_lSOA_to_school_obs$dest, CroydonSchools$urn)]
+
+croydon_lSOA_to_school_obs$phase_of_education_name <- CroydonSchools$phase_of_education_name[match(croydon_lSOA_to_school_obs$dest, CroydonSchools$urn)]
+
+croydon_lSOA_to_school_obs$ofsted_rating_name <- CroydonSchools$ofsted_rating_name[match(croydon_lSOA_to_school_obs$dest, CroydonSchools$urn)]
 
 ```
 
@@ -234,14 +262,20 @@ Points_CroydonSchools_secondary <- st_centroid(CroydonSchools_secondary)
 
 #simplify flow dataframe
 simple_croydon <- lsoa_surround_croydon_to_croydon_school_all[,c("orig","dest","flow")]
+simple_lon_to_croy <- lsoa_london_to_croydon_school_all[,c("orig","dest","flow")]
 
 #Get the travel lines
-croydon_travel_lines <- od2line(flow = simple_croydon, zones = Points_Croydon_Surround_LSOAs, destinations = Points_CroydonSchools_secondary)
+london_travel_lines <- od2line(flow = simple_lon_to_croy, zones = Points_London_LSOAs, destinations = Points_CroydonSchools_secondary) %>% 
+  unite("od_code", c("orig","dest"), sep = "_", remove = FALSE)
+
+croydon_travel_lines <- od2line(flow = simple_croydon, zones = Points_Croydon_Surround_LSOAs, destinations = Points_CroydonSchools_secondary) %>% 
+  unite("od_code", c("orig","dest"), sep = "_", remove = FALSE)
 
 
 ```
 
 Map the flows
+
 ```{r}
 
 tmap_mode("view")
@@ -263,16 +297,17 @@ map <- tm_shape(croydon_travel_lines) +
 map
 ```
 
-
-## Distance to Schools
+## Distance to Schools (Straight Line)
 
 ```{r}
 library(ggplot2)
 
 #Straight line distances
-l_distances <- geo_length(croydon_travel_lines)
+croy_distances <- geo_length(croydon_travel_lines)
+lond_distances <- geo_length(london_travel_lines)
 # Convert to km
-croydon_travel_lines$distances <- l_distances/1000
+croydon_travel_lines$distances <- croy_distances/1000
+london_travel_lines$distances <- lond_distances/1000
 
 #add column for average distance traveled, grouped by LSOA
 croydon_travel_lines$total_distance <- ((croydon_travel_lines$flow)*(croydon_travel_lines$distances))
@@ -290,17 +325,362 @@ croydon_travel_lines$distance_500m <- custom_round(croydon_travel_lines$distance
 Flows_by_100mdist <- st_set_geometry(croydon_travel_lines,NULL) %>% 
   dplyr::select(., c(flow,distance_100m)) %>% 
   group_by(distance_100m) %>% 
-  summarize_all(sum, na.rm = TRUE)
+  summarise(flow = sum(flow, na.rm = TRUE))
+
+Flows_over_100m <- Flows_by_100mdist %>% filter(distance_100m > 1)
+
 
 #Make new df grouped by LSOA
 Flows_by_500mdist <- st_set_geometry(croydon_travel_lines,NULL) %>% 
   dplyr::select(., c(flow,distance_500m)) %>% 
   group_by(distance_500m) %>% 
-  summarize_all(sum, na.rm = TRUE)
+  summarise(flow = sum(flow, na.rm = TRUE))
 
-ggplot(Flows_by_100mdist, aes(distance_100m, flow)) + geom_line() + scale_x_continuous(breaks = seq(0, 50, by = 1)) + labs(title = "Pupil Flows by Distance to School", x = "Distance (km)", y = "Pupil Count")
+Flows_over_500m <- Flows_by_500mdist %>% filter(distance_500m > 0.5)
 
-ggplot(Flows_by_500mdist, aes(distance_500m, flow)) + geom_line() + scale_x_continuous(breaks = seq(0, 50, by = 1)) + labs(title = "Pupil Flows by Distance to School", x = "Distance (km)", y = "Pupil Count")
+ggplot(Flows_by_100mdist, aes(distance_100m, flow)) + geom_line() + scale_x_continuous(breaks = seq(0, 50, by = 1)) + labs(title = "Pupil Flows by Distance to School", x = "Distance (100's m)", y = "Pupil Count")
+
+ggplot(Flows_by_500mdist, aes(distance_500m, flow)) + geom_line() + scale_x_continuous(breaks = seq(0, 50, by = 1)) + labs(title = "Pupil Flows by Distance to School", x = "Distance (100's m)", y = "Pupil Count") + 
+  geom_smooth(method="lm", formula= (y ~ exp(-0.5 * x)), se=FALSE, color="red")
+
+#ggplot(Flows_over_100m, aes(distance_100m, flow)) + geom_line() + scale_x_continuous(breaks = seq(0, 50, by = 1)) + labs(title = "Pupil Flows by Distance to School", x = "Distance (100's m)", y = "Pupil Count") + stat_function(fun=function(x) exp(-0.5 * x), geom="line", aes(colour=""))
+
+#ggplot(Flows_over_100m, aes(log(distance_100m), flow)) + geom_line() + scale_x_continuous(breaks = seq(0, 50, by = 1)) + labs(title = "Pupil Flows by Distance to School", x = "Distance (100's m)", y = "Pupil Count") + stat_function(fun=function(x) exp(-0.5 * x), geom="line", aes(colour=""))
+
+ggplot(Flows_over_500m, aes(distance_500m, flow)) + 
+  geom_line() + scale_x_continuous(breaks = seq(0, 50, by = 1)) + 
+  labs(title = "Pupil Flows by Distance to School", x = "Distance (100's m)", y = "Pupil Count") + 
+  geom_smooth(method="lm", formula= (y ~ exp(-0.5 * x)), se=FALSE, color="red") #+
+  #geom_smooth(method="lm", formula= (y ~ exp(-2 * x)), se=FALSE, color="blue") #+
+  #geom_smooth(method="lm", formula = y ~ x + I(x^-0.5), se=FALSE, color="green") 
+
 
 ```
 
+## Additional Data
+
+```{r}
+#read an excel file from the web - curl is the key here. 
+download.file("https://londondatastore-upload.s3.amazonaws.com/lsoa-data.xls", destfile = "LSOA_Atlas.xls", method = "curl")
+
+#have a look inside the horrible file and read in just the bits you want
+atlas_headers <- as.list(read_xls("LSOA_Atlas.xls", sheet = 2, range = "A2:BG2") %>% clean_names())
+names(atlas_headers)
+
+LSOA_Atlas <- read_xls("LSOA_Atlas.xls", sheet = 2, range = "A4:BG4838", col_names = c(
+  "lsoa_code",                                                                     
+  "lsoa_name",                                                                       
+  "no_adults_in_employment_in_household_with_dependent_children",              
+  "percent_of_households_with_no_adults_in_employment_with_dependent_children",
+  "all_lone_parent_housholds_with_dependent_children",                         
+  "lone_parents_not_in_employment",                                            
+  "lone_parent_not_in_employment_percent",                                     
+  "economically_active_total",                                                 
+  "economically_inactive_total" ,                                              
+  "economically_active_employee",                                             
+  "economically_active_self_employed",                                         
+  "economically_active_unemployed",                                            
+  "economically_active_full_time_student",                                     
+  "employment_rate",                                                           
+  "unemployment_rate",                                                         
+  "no_qualifications",                                                         
+  "highest_level_of_qualification_level_1_qualifications",
+  "highest_level_of_qualification_level_2_qualifications",                     
+  "highest_level_of_qualification_apprenticeship",                             
+  "highest_level_of_qualification_level_3_qualifications",                     
+  "highest_level_of_qualification_level_4_qualifications_and_above",           
+  "highest_level_of_qualification_other_qualifications",                       
+  "schoolchildren_and_full_time_students_age_18_and_over",                     
+  "percent_no_qualifications",                                                 
+  "percent_highest_level_of_qualification_level_1_qualifications",             
+  "percent_highest_level_of_qualification_level_2_qualifications",            
+  "percent_highest_level_of_qualification_apprenticeship",                     
+  "percent_highest_level_of_qualification_level_3_qualifications",             
+  "percent_highest_level_of_qualification_level_4_qualifications_and_above",   
+  "percent_highest_level_of_qualification_other_qualifications",               
+  "percent_schoolchildren_and_full_time_students_age_18_and_over",             
+  "day_to_day_activities_limited_a_lot",                                       
+  "day_to_day_activities_limited_a_little",                                    
+  "day_to_day_activities_not_limited",                                         
+  "very_good_or_good_health",                                                  
+  "fair_health",                                                               
+  "bad_or_very_bad_health",                                                    
+  "day_to_day_activities_limited_a_lot_percent",                               
+  "day_to_day_activities_limited_a_little_percent",                            
+  "day_to_day_activities_not_limited_percent",                                 
+  "very_good_or_good_health_percent",                                          
+  "fair_health_percent",                                                       
+  "bad_or_very_bad_health_percent",                                            
+  "no_cars_or_vans_in_household",                                              
+  "x1_car_or_van_in_household",                                                
+  "x2_cars_or_vans_in_household",                                              
+  "x3_cars_or_vans_in_household",                                              
+  "x4_or_more_cars_or_vans_in_household",                                      
+  "sum_of_all_cars_or_vans_in_the_area",                                       
+  "no_cars_or_vans_in_household_percent",                                      
+  "x1_car_or_van_in_household_percent",                                        
+  "x2_cars_or_vans_in_household_percent",                                      
+  "x3_cars_or_vans_in_household_percent",                                      
+  "x4_or_more_cars_or_vans_in_household_percent",                              
+  "cars_per_household",                                                        
+  "total_number_of_children",                                                  
+  "total_number_of_families_claiming_benefit",                                 
+  "number_of_families_with_3_children",                                        
+  "percent_of_families_with_3_children"
+), col_types = c(
+  "text",
+  "text",
+  "numeric",
+  "numeric",
+  "numeric",
+  "numeric",
+  "numeric",
+  "numeric",
+  "numeric",
+  "numeric",
+  "numeric",
+  "numeric",
+  "numeric",
+  "numeric",
+  "numeric",
+  "numeric",
+  "numeric",
+  "numeric",
+  "numeric",
+  "numeric",
+  "numeric",
+  "numeric",
+  "numeric",
+  "numeric",
+  "numeric",
+  "numeric",
+  "numeric",
+  "numeric",
+  "numeric",
+  "numeric",
+  "numeric",
+  "numeric",
+  "numeric",
+  "numeric",
+  "numeric",
+  "numeric",
+  "numeric",
+  "numeric",
+  "numeric",
+  "numeric",
+  "numeric",
+  "numeric",
+  "numeric",
+  "numeric",
+  "numeric",
+  "numeric",
+  "numeric",
+  "numeric",
+  "numeric",
+  "numeric",
+  "numeric",
+  "numeric",
+  "numeric",
+  "numeric",
+  "numeric",
+  "numeric",
+  "numeric",
+  "numeric",
+  "numeric"
+), na = "-")
+
+```
+
+## Complete Data Set-up
+
+Three different spatial system extents to play with here:
+
+1.  Observed Flows from LSOAs to Schools Only (Croydon LSOA to School Obs)
+2.  All LSOAs in Boroughs Surrounding Croydon to Schools in Croydon (assuming that all might realistically be origins for pupils)
+3.  All LSOAs in London - just to see what effect is has on model predictions
+
+```{r}
+#1. Observed Flows from LSOAs to Schools Only (Croydon LSOA to School Obs)
+
+croydon_lSOA_to_school_obs$dist_straight <- croydon_travel_lines$distances[match(croydon_lSOA_to_school_obs$od_code, croydon_travel_lines$od_code)]
+
+croydon_lSOA_to_school_obs$orig_school_children_total <- LSOA_Atlas$schoolchildren_and_full_time_students_age_18_and_over[match(croydon_lSOA_to_school_obs$orig, LSOA_Atlas$lsoa_code)]
+
+
+#2. All LSOAs in Boroughs Surrounding Croydon to Schools in Croydon 
+
+lsoa_surround_croydon_to_croydon_school_all$dist_straight <- croydon_travel_lines$distances[match(lsoa_surround_croydon_to_croydon_school_all$od_code, croydon_travel_lines$od_code)]
+
+lsoa_surround_croydon_to_croydon_school_all$orig_school_children_total <- LSOA_Atlas$schoolchildren_and_full_time_students_age_18_and_over[match(lsoa_surround_croydon_to_croydon_school_all$orig, LSOA_Atlas$lsoa_code)]
+
+#3. All LSOAs in London - just to see what effect is has on model predictions
+
+lsoa_london_to_croydon_school_all$dist_straight <- london_travel_lines$distances[match(lsoa_london_to_croydon_school_all$od_code, london_travel_lines$od_code)]
+
+lsoa_london_to_croydon_school_all$orig_school_children_total <- LSOA_Atlas$schoolchildren_and_full_time_students_age_18_and_over[match(lsoa_london_to_croydon_school_all$orig, LSOA_Atlas$lsoa_code)]
+
+#add some geometry
+
+```
+
+## Model Calibration
+
+### Basic Descriptives
+
+```{r}
+#check variable distributions
+ggplot(lsoa_london_to_croydon_school_all) +
+  geom_histogram(aes(x = flow))
+
+ggplot(lsoa_london_to_croydon_school_all) +
+  geom_histogram(aes(x = log(flow)))
+
+ggplot(lsoa_london_to_croydon_school_all) +
+  geom_histogram(aes(x = log(dist_straight)))
+
+ggplot(lsoa_london_to_croydon_school_all) +
+  geom_histogram(aes(x = orig_pop))
+
+ggplot(lsoa_london_to_croydon_school_all) +
+  geom_histogram(aes(x = dest_total_pupils))
+
+ggplot(lsoa_london_to_croydon_school_all) +
+  geom_point(aes(y = log(flow), x = log(dist_straight)))
+
+```
+
+### Basic Calibrated Gravity
+
+#### 
+
+Create some Goodness-of-fit functions first
+
+```{r}
+CalcRSquared <- function(observed,estimated){
+  r <- cor(observed,estimated, use = "pairwise.complete.obs", method = c("pearson"))
+  R2 <- r^2
+  R2
+}
+
+CalcRMSE <- function(observed,estimated){
+  res <- (observed - estimated)^2
+  RMSE <- round(sqrt(mean(res)),3)
+  RMSE
+}
+```
+
+#### Total Constrained
+
+#BIG QUESTION TO BE ANSWERED - SPARSE MATRICES: DO WE WANT TO FILL NA's with 0.0000001 etc.OR LEAVE AS NA? Few Tests Below - i.e. with a dest constraint, we might not need
+
+```{r}
+library(broom)
+data=lsoa_london_to_croydon_school_all 
+
+SchoolSIM1 <- glm(flow ~ log(orig_pop) + log(dest_capacity) + log(dist_straight), na.action = na.exclude, family = poisson(link = "log"), data = data)
+
+summary(SchoolSIM1)
+tidy(SchoolSIM1)
+```
+
+```{r}
+## extract the coefficients
+
+k <- SchoolSIM1$coefficients[1]
+mu <- SchoolSIM1$coefficients[2]
+alpha <- SchoolSIM1$coefficients[3]
+beta <- -SchoolSIM1$coefficients[4]
+
+## calculate the some new parameter bits
+vi1_mu <- data$orig_pop^mu
+wj3_alpha <- data$dest_capacity^alpha
+dist_beta <- data$dist_straight^-beta
+T1 <- vi1_mu*wj3_alpha*dist_beta
+T2 <- sum(data$flow, na.rm = T)
+k <- T2/sum(T1, na.rm = T)
+
+```
+
+```{r}
+lsoa_london_to_croydon_school_all$fitted <- predict(SchoolSIM1, type = "response")
+lsoa_london_to_croydon_school_all$est1 <- k*vi1_mu*wj3_alpha*dist_beta
+lsoa_london_to_croydon_school_all$obs <- lsoa_london_to_croydon_school_all$flow
+
+CalcRSquared(lsoa_london_to_croydon_school_all$flow,lsoa_london_to_croydon_school_all$est1)
+
+sum(lsoa_london_to_croydon_school_all$flow, na.rm = T)
+sum(lsoa_london_to_croydon_school_all$est1, na.rm = T)
+sum(lsoa_london_to_croydon_school_all$fitted, na.rm = T)
+
+
+```
+
+# Problem we have here is the fitted values won't estimate anything for areas that weren't in the original data - deterministic challenge
+
+The estimates derived from the parameters try to spread the same total number of students across all areas - spreads them too thinly
+
+## make some maps
+
+```{r}
+library(tidyr)
+
+flows <- london_travel_lines
+flows$observed <- lsoa_london_to_croydon_school_all$flow[match(flows$od_code, lsoa_london_to_croydon_school_all$od_code)]
+flows$fitted <- lsoa_london_to_croydon_school_all$fitted[match(flows$od_code, lsoa_london_to_croydon_school_all$od_code)]
+flows$est1 <- lsoa_london_to_croydon_school_all$est1[match(flows$od_code, lsoa_london_to_croydon_school_all$od_code)]
+
+flow_clean <- flows %>% drop_na(est1)
+flow_clean <- flows %>% drop_na(observed)
+flow_clean <- flows %>% drop_na(fitted)
+
+tmap_mode("view")
+map <- tm_shape(flow_clean) +
+  tm_lines(palette = "plasma", breaks = c(0, 5, 10, 20, 40, 100,200),
+           lwd = "est1",
+           scale = 9,
+           id="",
+           popup.vars= c("orig", "dest","flow"),
+           title.lwd = "number_of_pupils",
+           alpha = 0.6,
+           col = "est1",
+           title = "Estimated Pupil Count")+
+  tm_shape(CroydonSchools_secondary)+
+          tm_dots(col="phase_of_education_name", size=0.01,id="establishment_name", title = "Phase of Education") +
+  tm_shape(London_Boroughs) +
+          tm_polygons(col = NA, alpha = 0)
+
+map
+```
+
+
+
+```{r}
+#create some Oi and Dj columns in the dataframe and store row and column totals in them:
+#to create O_i, take mdatasub ...then... group by origcodenew ...then... summarise by calculating the sum of Total
+O_i <- lsoa_london_to_croydon_school_all %>% group_by(orig) %>% summarise(O_i = sum(flow, na.rm = T))
+
+lsoa_london_to_croydon_school_all$O_i <- O_i$O_i[match(lsoa_london_to_croydon_school_all$orig,O_i$orig)]
+
+D_j <- lsoa_london_to_croydon_school_all %>% group_by(dest) %>% summarise(D_j = sum(flow, na.rm = T))
+
+lsoa_london_to_croydon_school_all$D_j <- D_j$D_j[match(lsoa_london_to_croydon_school_all$dest,D_j$dest)]
+```
+
+```{r}
+## Attraction Constrained
+
+SchoolSIM2 <- glm(flow ~ log(orig_pop) + establishment_name + log(dist_straight)-1, na.action = na.exclude, family = poisson(link = "log"), data = data)
+
+summary(SchoolSIM2)
+tidy(SchoolSIM2)
+```
+
+```{r}
+lsoa_london_to_croydon_school_all$attrsimFitted <- round(fitted(SchoolSIM2),0)
+CalcRSquared(lsoa_london_to_croydon_school_all$flow,lsoa_london_to_croydon_school_all$attrsimFitted)
+
+```
+
+```{r}
+coefs <- as.data.frame(SchoolSIM2$coefficients)
+```
