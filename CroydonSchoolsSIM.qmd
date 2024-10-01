@@ -8,6 +8,15 @@ editor: visual
 ## Vignette to demonstrate Modelling pupil flows into schools in Croydon from surrounding LSOAs.
 
 ```{r}
+# Install pak if not already installed:
+if (!requireNamespace("pak", quietly = TRUE)) {
+  install.packages("pak")
+}
+pak::pkg_install("Urban-Analytics-Technology-Platform/od2net/r")
+```
+
+
+```{r}
 library(tidyverse)
 library(sf)
 library(janitor)
@@ -297,6 +306,43 @@ map <- tm_shape(croydon_travel_lines) +
 map
 ```
 
+```{r}
+### Create a little test system
+library(od2net)
+
+fake_schools <- st_read("data/fake_schools.geojson")
+mini_system <- Croydon_LSOAs[1:10,c(1,9,15)]
+write_csv(Croydon_LSOAs[1:10,1],"mini_system.csv")
+mini_system_centroids <- st_centroid(Croydon_LSOAs[1:10,]) %>%
+  dplyr::mutate(x = st_coordinates(.)[,1], y = st_coordinates(.)[,2])
+
+fake_lines <- od2line(flow = simple_croydon, zones = Points_Croydon_Surround_LSOAs, destinations = Points_CroydonSchools_secondary) %>% 
+  unite("od_code", c("orig","dest"), sep = "_", remove = FALSE)
+
+tm_shape(mini_system) +
+  tm_polygons(col = "grey", border.col = "black", border.alpha = 0.5) +
+tm_shape(mini_system_centroids) +
+    tm_dots() + 
+tm_shape(fake_schools) +
+    tm_dots(col = "red", size = 0.1)
+
+qtm(Croydon_LSOAs[1:10,])
+
+st_write(Croydon_LSOAs[1:10,], "Croydon_LSOAs.shp")
+
+write_csv(mini_system_centroids, "mini_system_centroids.csv")
+mini_system_centroids <- st_coordinates(Croydon_LSOAs[1:10,]) 
+
+fake_schools_centroids <- st_centroid(fake_schools) %>%
+  dplyr::mutate(x = st_coordinates(.)[,1], y = st_coordinates(.)[,2])
+write_csv(fake_schools_centroids, "fake_schools_centroids.csv")
+
+
+write_csv(Croydon_LSOAs)
+```
+
+
+
 ## Distance to Schools (Straight Line)
 
 ```{r}
@@ -489,6 +535,8 @@ LSOA_Atlas <- read_xls("LSOA_Atlas.xls", sheet = 2, range = "A4:BG4838", col_nam
   "numeric"
 ), na = "-")
 
+#write_csv(LSOA_Atlas, "data/LSOA_Atlas.csv")
+
 ```
 
 ## Complete Data Set-up
@@ -651,8 +699,6 @@ map <- tm_shape(flow_clean) +
 
 map
 ```
-
-
 
 ```{r}
 #create some Oi and Dj columns in the dataframe and store row and column totals in them:
