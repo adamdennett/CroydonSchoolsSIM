@@ -15,7 +15,6 @@ if (!requireNamespace("pak", quietly = TRUE)) {
 pak::pkg_install("Urban-Analytics-Technology-Platform/od2net/r")
 ```
 
-
 ```{r}
 library(tidyverse)
 library(sf)
@@ -85,6 +84,144 @@ Surrounding_Boroughs <- London_Boroughs |>
 Croydon_Surround_LSOAs <- London_LSOAs %>% filter(lad11nm %in% surround_boroughs)
 
 ```
+
+
+## Additional Data
+
+```{r}
+#read an excel file from the web - curl is the key here. 
+download.file("https://londondatastore-upload.s3.amazonaws.com/lsoa-data.xls", destfile = "data/LSOA_Atlas.xls", method = "curl")
+
+#have a look inside the horrible file and read in just the bits you want
+atlas_headers <- as.list(read_xls("data/LSOA_Atlas.xls", sheet = 2, range = "A2:BG2") %>% clean_names())
+names(atlas_headers)
+
+LSOA_Atlas <- read_xls("data/LSOA_Atlas.xls", sheet = 2, range = "A4:BG4838", col_names = c(
+  "lsoa_code",                                                                     
+  "lsoa_name",                                                                       
+  "no_adults_in_employment_in_household_with_dependent_children",              
+  "percent_of_households_with_no_adults_in_employment_with_dependent_children",
+  "all_lone_parent_housholds_with_dependent_children",                         
+  "lone_parents_not_in_employment",                                            
+  "lone_parent_not_in_employment_percent",                                     
+  "economically_active_total",                                                 
+  "economically_inactive_total" ,                                              
+  "economically_active_employee",                                             
+  "economically_active_self_employed",                                         
+  "economically_active_unemployed",                                            
+  "economically_active_full_time_student",                                     
+  "employment_rate",                                                           
+  "unemployment_rate",                                                         
+  "no_qualifications",                                                         
+  "highest_level_of_qualification_level_1_qualifications",
+  "highest_level_of_qualification_level_2_qualifications",                     
+  "highest_level_of_qualification_apprenticeship",                             
+  "highest_level_of_qualification_level_3_qualifications",                     
+  "highest_level_of_qualification_level_4_qualifications_and_above",           
+  "highest_level_of_qualification_other_qualifications",                       
+  "schoolchildren_and_full_time_students_age_18_and_over",                     
+  "percent_no_qualifications",                                                 
+  "percent_highest_level_of_qualification_level_1_qualifications",             
+  "percent_highest_level_of_qualification_level_2_qualifications",            
+  "percent_highest_level_of_qualification_apprenticeship",                     
+  "percent_highest_level_of_qualification_level_3_qualifications",             
+  "percent_highest_level_of_qualification_level_4_qualifications_and_above",   
+  "percent_highest_level_of_qualification_other_qualifications",               
+  "percent_schoolchildren_and_full_time_students_age_18_and_over",             
+  "day_to_day_activities_limited_a_lot",                                       
+  "day_to_day_activities_limited_a_little",                                    
+  "day_to_day_activities_not_limited",                                         
+  "very_good_or_good_health",                                                  
+  "fair_health",                                                               
+  "bad_or_very_bad_health",                                                    
+  "day_to_day_activities_limited_a_lot_percent",                               
+  "day_to_day_activities_limited_a_little_percent",                            
+  "day_to_day_activities_not_limited_percent",                                 
+  "very_good_or_good_health_percent",                                          
+  "fair_health_percent",                                                       
+  "bad_or_very_bad_health_percent",                                            
+  "no_cars_or_vans_in_household",                                              
+  "x1_car_or_van_in_household",                                                
+  "x2_cars_or_vans_in_household",                                              
+  "x3_cars_or_vans_in_household",                                              
+  "x4_or_more_cars_or_vans_in_household",                                      
+  "sum_of_all_cars_or_vans_in_the_area",                                       
+  "no_cars_or_vans_in_household_percent",                                      
+  "x1_car_or_van_in_household_percent",                                        
+  "x2_cars_or_vans_in_household_percent",                                      
+  "x3_cars_or_vans_in_household_percent",                                      
+  "x4_or_more_cars_or_vans_in_household_percent",                              
+  "cars_per_household",                                                        
+  "total_number_of_children",                                                  
+  "total_number_of_families_claiming_benefit",                                 
+  "number_of_families_with_3_children",                                        
+  "percent_of_families_with_3_children"
+), col_types = c(
+  "text",
+  "text",
+  "numeric",
+  "numeric",
+  "numeric",
+  "numeric",
+  "numeric",
+  "numeric",
+  "numeric",
+  "numeric",
+  "numeric",
+  "numeric",
+  "numeric",
+  "numeric",
+  "numeric",
+  "numeric",
+  "numeric",
+  "numeric",
+  "numeric",
+  "numeric",
+  "numeric",
+  "numeric",
+  "numeric",
+  "numeric",
+  "numeric",
+  "numeric",
+  "numeric",
+  "numeric",
+  "numeric",
+  "numeric",
+  "numeric",
+  "numeric",
+  "numeric",
+  "numeric",
+  "numeric",
+  "numeric",
+  "numeric",
+  "numeric",
+  "numeric",
+  "numeric",
+  "numeric",
+  "numeric",
+  "numeric",
+  "numeric",
+  "numeric",
+  "numeric",
+  "numeric",
+  "numeric",
+  "numeric",
+  "numeric",
+  "numeric",
+  "numeric",
+  "numeric",
+  "numeric",
+  "numeric",
+  "numeric",
+  "numeric",
+  "numeric",
+  "numeric"
+), na = "-")
+
+#write_csv(LSOA_Atlas, "data/LSOA_Atlas.csv")
+
+```
+
 
 ## Map of the spatial system
 
@@ -281,6 +418,11 @@ croydon_travel_lines <- od2line(flow = simple_croydon, zones = Points_Croydon_Su
   unite("od_code", c("orig","dest"), sep = "_", remove = FALSE)
 
 
+write_csv(simple_croydon, "simple_croydon_flow.csv")
+st_write(Points_Croydon_Surround_LSOAs, "Points_LSOA_Croydon.geojson", append=F)
+st_write(Points_CroydonSchools_secondary, "Points_CroydonSchools.geojson", append=F)
+
+
 ```
 
 Map the flows
@@ -310,38 +452,51 @@ map
 ### Create a little test system
 library(od2net)
 
-fake_schools <- st_read("data/fake_schools.geojson")
-mini_system <- Croydon_LSOAs[1:10,c(1,9,15)]
-write_csv(Croydon_LSOAs[1:10,1],"mini_system.csv")
-mini_system_centroids <- st_centroid(Croydon_LSOAs[1:10,]) %>%
+lsoa_london_to_croydon_school_all$dest_total_pupils <- croydon_lSOA_to_school_obs$total_sec_school_pupils[match(lsoa_london_to_croydon_school_all$dest, croydon_lSOA_to_school_obs$secondary_school_urn)]
+
+dest_fake <- st_read("data/fake_schools.geojson")
+
+dest_fake$school_capacity <- CroydonSchools_secondary$school_capacity[match(dest_fake$urn, CroydonSchools_secondary$urn)]
+dest_fake$number_of_pupils <- CroydonSchools_secondary$number_of_pupils[match(dest_fake$urn, CroydonSchools_secondary$urn)]
+dest_fake$percentage_fsm <- CroydonSchools_secondary$percentage_fsm[match(dest_fake$urn, CroydonSchools_secondary$urn)]
+dest_fake$ofsted_rating_name <- CroydonSchools_secondary$ofsted_rating_name[match(dest_fake$urn, CroydonSchools_secondary$urn)]
+dest_fake$phase_of_education_name <- CroydonSchools_secondary$phase_of_education_name[match(dest_fake$urn, CroydonSchools_secondary$urn)]
+dest_fake$establishment_name <- CroydonSchools_secondary$establishment_name[match(dest_fake$urn, CroydonSchools_secondary$urn)]
+
+orig_small <- Croydon_LSOAs[1:10,c(1,9,15)]
+orig_small$total_number_of_children <- LSOA_Atlas$total_number_of_children[match(orig_small$lsoa11cd, LSOA_Atlas$lsoa_code)]
+orig_small$percent_no_qualifications <- LSOA_Atlas$percent_no_qualifications[match(orig_small$lsoa11cd, LSOA_Atlas$lsoa_code)]
+
+write_csv(orig_small, "data/orig_small.csv")
+write_csv(dest_fake, "data/dest_fake.csv")
+
+#write_csv(Croydon_LSOAs[1:10,1],"data/mini_system.csv")
+orig_small_centroids <- st_centroid(Croydon_LSOAs[1:10,]) %>%
   dplyr::mutate(x = st_coordinates(.)[,1], y = st_coordinates(.)[,2])
 
-fake_lines <- od2line(flow = simple_croydon, zones = Points_Croydon_Surround_LSOAs, destinations = Points_CroydonSchools_secondary) %>% 
-  unite("od_code", c("orig","dest"), sep = "_", remove = FALSE)
+#fake_lines <- od2line(flow = simple_croydon, zones = Points_Croydon_Surround_LSOAs, destinations = Points_CroydonSchools_secondary) %>% 
+#  unite("od_code", c("orig","dest"), sep = "_", remove = #FALSE)
 
-tm_shape(mini_system) +
-  tm_polygons(col = "grey", border.col = "black", border.alpha = 0.5) +
-tm_shape(mini_system_centroids) +
+tm_shape(orig_small) +
+  tm_polygons(col = "grey", alpha = 0.5, border.col = "black", border.alpha = 0.5) +
+tm_shape(orig_small_centroids) +
     tm_dots() + 
-tm_shape(fake_schools) +
+tm_shape(dest_fake) +
     tm_dots(col = "red", size = 0.1)
 
 qtm(Croydon_LSOAs[1:10,])
 
 st_write(Croydon_LSOAs[1:10,], "Croydon_LSOAs.shp")
 
-write_csv(mini_system_centroids, "mini_system_centroids.csv")
-mini_system_centroids <- st_coordinates(Croydon_LSOAs[1:10,]) 
+write_csv(orig_small_centroids, "orig_small_centroids.csv")
 
-fake_schools_centroids <- st_centroid(fake_schools) %>%
+dest_fake_centroids <- st_centroid(dest_fake) %>%
   dplyr::mutate(x = st_coordinates(.)[,1], y = st_coordinates(.)[,2])
-write_csv(fake_schools_centroids, "fake_schools_centroids.csv")
+write_csv(dest_fake, "data/fake_schools_centroids.csv")
 
 
 write_csv(Croydon_LSOAs)
 ```
-
-
 
 ## Distance to Schools (Straight Line)
 
@@ -403,141 +558,6 @@ ggplot(Flows_over_500m, aes(distance_500m, flow)) +
 
 ```
 
-## Additional Data
-
-```{r}
-#read an excel file from the web - curl is the key here. 
-download.file("https://londondatastore-upload.s3.amazonaws.com/lsoa-data.xls", destfile = "LSOA_Atlas.xls", method = "curl")
-
-#have a look inside the horrible file and read in just the bits you want
-atlas_headers <- as.list(read_xls("LSOA_Atlas.xls", sheet = 2, range = "A2:BG2") %>% clean_names())
-names(atlas_headers)
-
-LSOA_Atlas <- read_xls("LSOA_Atlas.xls", sheet = 2, range = "A4:BG4838", col_names = c(
-  "lsoa_code",                                                                     
-  "lsoa_name",                                                                       
-  "no_adults_in_employment_in_household_with_dependent_children",              
-  "percent_of_households_with_no_adults_in_employment_with_dependent_children",
-  "all_lone_parent_housholds_with_dependent_children",                         
-  "lone_parents_not_in_employment",                                            
-  "lone_parent_not_in_employment_percent",                                     
-  "economically_active_total",                                                 
-  "economically_inactive_total" ,                                              
-  "economically_active_employee",                                             
-  "economically_active_self_employed",                                         
-  "economically_active_unemployed",                                            
-  "economically_active_full_time_student",                                     
-  "employment_rate",                                                           
-  "unemployment_rate",                                                         
-  "no_qualifications",                                                         
-  "highest_level_of_qualification_level_1_qualifications",
-  "highest_level_of_qualification_level_2_qualifications",                     
-  "highest_level_of_qualification_apprenticeship",                             
-  "highest_level_of_qualification_level_3_qualifications",                     
-  "highest_level_of_qualification_level_4_qualifications_and_above",           
-  "highest_level_of_qualification_other_qualifications",                       
-  "schoolchildren_and_full_time_students_age_18_and_over",                     
-  "percent_no_qualifications",                                                 
-  "percent_highest_level_of_qualification_level_1_qualifications",             
-  "percent_highest_level_of_qualification_level_2_qualifications",            
-  "percent_highest_level_of_qualification_apprenticeship",                     
-  "percent_highest_level_of_qualification_level_3_qualifications",             
-  "percent_highest_level_of_qualification_level_4_qualifications_and_above",   
-  "percent_highest_level_of_qualification_other_qualifications",               
-  "percent_schoolchildren_and_full_time_students_age_18_and_over",             
-  "day_to_day_activities_limited_a_lot",                                       
-  "day_to_day_activities_limited_a_little",                                    
-  "day_to_day_activities_not_limited",                                         
-  "very_good_or_good_health",                                                  
-  "fair_health",                                                               
-  "bad_or_very_bad_health",                                                    
-  "day_to_day_activities_limited_a_lot_percent",                               
-  "day_to_day_activities_limited_a_little_percent",                            
-  "day_to_day_activities_not_limited_percent",                                 
-  "very_good_or_good_health_percent",                                          
-  "fair_health_percent",                                                       
-  "bad_or_very_bad_health_percent",                                            
-  "no_cars_or_vans_in_household",                                              
-  "x1_car_or_van_in_household",                                                
-  "x2_cars_or_vans_in_household",                                              
-  "x3_cars_or_vans_in_household",                                              
-  "x4_or_more_cars_or_vans_in_household",                                      
-  "sum_of_all_cars_or_vans_in_the_area",                                       
-  "no_cars_or_vans_in_household_percent",                                      
-  "x1_car_or_van_in_household_percent",                                        
-  "x2_cars_or_vans_in_household_percent",                                      
-  "x3_cars_or_vans_in_household_percent",                                      
-  "x4_or_more_cars_or_vans_in_household_percent",                              
-  "cars_per_household",                                                        
-  "total_number_of_children",                                                  
-  "total_number_of_families_claiming_benefit",                                 
-  "number_of_families_with_3_children",                                        
-  "percent_of_families_with_3_children"
-), col_types = c(
-  "text",
-  "text",
-  "numeric",
-  "numeric",
-  "numeric",
-  "numeric",
-  "numeric",
-  "numeric",
-  "numeric",
-  "numeric",
-  "numeric",
-  "numeric",
-  "numeric",
-  "numeric",
-  "numeric",
-  "numeric",
-  "numeric",
-  "numeric",
-  "numeric",
-  "numeric",
-  "numeric",
-  "numeric",
-  "numeric",
-  "numeric",
-  "numeric",
-  "numeric",
-  "numeric",
-  "numeric",
-  "numeric",
-  "numeric",
-  "numeric",
-  "numeric",
-  "numeric",
-  "numeric",
-  "numeric",
-  "numeric",
-  "numeric",
-  "numeric",
-  "numeric",
-  "numeric",
-  "numeric",
-  "numeric",
-  "numeric",
-  "numeric",
-  "numeric",
-  "numeric",
-  "numeric",
-  "numeric",
-  "numeric",
-  "numeric",
-  "numeric",
-  "numeric",
-  "numeric",
-  "numeric",
-  "numeric",
-  "numeric",
-  "numeric",
-  "numeric",
-  "numeric"
-), na = "-")
-
-#write_csv(LSOA_Atlas, "data/LSOA_Atlas.csv")
-
-```
 
 ## Complete Data Set-up
 

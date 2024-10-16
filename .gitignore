@@ -6,3 +6,16 @@
 *.csv
 data/
 LSOA_Atlas.xls
+.Rdata
+.httr-oauth
+.DS_Store
+.quarto
+
+Croydon_LSOAs.dbf
+Croydon_LSOAs.prj
+Croydon_LSOAs.shp
+Croydon_LSOAs.shx
+CroydonData.zip
+CroydonSchoolsSIM.qmd
+Points_CroydonSchools.geojson
+Points_LSOA_Croydon.geojson
