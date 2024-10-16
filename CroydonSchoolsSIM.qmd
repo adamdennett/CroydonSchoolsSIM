@@ -28,7 +28,7 @@ library(readxl)
 ```{r}
 here()
 use_git()
-use_github()
+use_github() 
 ```
 
 ## Introduction
