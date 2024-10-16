@@ -27,6 +27,8 @@ library(readxl)
 
 ```{r}
 here()
+use_git()
+use_github()
 ```
 
 ## Introduction
@@ -486,7 +488,7 @@ tm_shape(dest_fake) +
 
 qtm(Croydon_LSOAs[1:10,])
 
-st_write(Croydon_LSOAs[1:10,], "Croydon_LSOAs.shp")
+st_write(Croydon_LSOAs[1:10,], "Croydon_LSOAs.shp", append=F)
 
 write_csv(orig_small_centroids, "orig_small_centroids.csv")
 
@@ -495,7 +497,7 @@ dest_fake_centroids <- st_centroid(dest_fake) %>%
 write_csv(dest_fake, "data/fake_schools_centroids.csv")
 
 
-write_csv(Croydon_LSOAs)
+#write_csv(Croydon_LSOAs)
 ```
 
 ## Distance to Schools (Straight Line)
